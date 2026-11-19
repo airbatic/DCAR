@@ -1,6 +1,7 @@
 #include "DCARApp.h"
 #include "ConnectDialog.h"
 
+// Icon resources for linux build
 #ifndef __WXMSW__
 #include "res/DCAR_16.xpm"
 #include "res/DCAR_32.xpm"
