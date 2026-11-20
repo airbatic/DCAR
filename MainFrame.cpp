@@ -116,7 +116,7 @@ MainFrame::MainFrame() :
 
 	m_panel->SetSizer(hbox);
 
-	SetMinSize(wxSize(760, 285));
+	SetMinSize(wxSize(560, 185));
 	//SetMaxSize(wxSize(-1, 250));
 
 	// Restore the previously saved geometry, if any, and register this frame
