@@ -79,6 +79,9 @@ MainFrame::MainFrame() :
 	m_strHostname = wxT("");
 	m_nPortNumber = 1200;
 
+    // Set a unique name
+    SetName("DRC1200_MainFrame");
+
     // Explicitly loading a bundle with multiple sizes (Cleaner for high-DPI)
     wxIconBundle iconBundle;
 #ifdef __WXMSW__
@@ -147,7 +150,6 @@ MainFrame::~MainFrame()
 {
 
 }
-
 
 void MainFrame::CreateMenuBar(void)
 {
@@ -306,18 +308,30 @@ void MainFrame::HandleReceiveData(void)
 
 void MainFrame::OnConnectTcp(wxCommandEvent& WXUNUSED(event))
 {
-	//ConnectDialog dlg(this, wxID_ANY, wxT("TCP/IP Connect"));
+    // Read host name from config file
+	wxConfig* config = wxGetApp().GetConfig();
+	wxString str;
+	wxString key = wxT("hostname");
+
+    if (!config->Read(key, &str))
+    {
+        str = _("192.168.1.143");
+    }
 
 	// Ask user for server address
 	wxString hostname = wxGetTextFromUser(
 		_("Enter the IP address of the DCAR to connect with"),
-		_("Connect..."),
-		_("192.168.1.143"));
+		_("Connect..."), str);
 
 	if (hostname.empty())
 	{
 		return;
 	}
+
+	m_strHostname = hostname;
+
+    config->Write(key, hostname);
+    config->Flush();
 
 	ConnectionOpen(wxSockAddress::IPV4, hostname);
 }

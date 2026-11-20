@@ -23,6 +23,8 @@
 #include "wx/overlay.h"
 #include "wx/graphics.h"
 #include "wx/minifram.h"
+#include "wx/config.h"
+#include "wx/stdpaths.h"
 
 #define VERSION_MAJOR   1
 #define VERSION_MINOR   0
@@ -39,12 +41,20 @@ public:
 
 	MainFrame* GetMainFrame(void)
 	{ return m_pMainFrame; }
+	    wxConfig* GetConfig(void)
+    { return m_pConfig; }
+
 
 public:
-	bool OnInit();
+	virtual bool OnInit() override;
+    virtual int OnExit() override;
 
 //private:
 	MainFrame* m_pMainFrame;
+    wxConfig* m_pConfig;
+	size_t  m_trackCount;       /* num of tracks machine supports 8, 16 or 24 */
+    bool    m_dcsFound;         /* true if DCS track controller found */
+	wxString m_strHostArg;
 };
 
 // controls and menu constants
