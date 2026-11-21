@@ -350,7 +350,7 @@ int MainFrame::CheckError(int rc, wxString msg)
     if (rc != DCAR_ERR_SUCCESS)
     {
         wxString str;
-        str.Printf("\nCheck that the DCAR IP address is correct\n\nError %d - %s", rc, msg);
+        str.Printf("\ngCheck that the DCAR IP address is correct\n\nError %d - %s", rc, msg);
         wxMessageBox(str, wxT("DCAR Error"), wxICON_ERROR, this);
     }
     return rc;
