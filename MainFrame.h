@@ -62,6 +62,7 @@ private:
 	void ConnectionClose(void);
 	//void HandleReceiveData(void);
     int CheckError(int rc, wxString msg);
+    bool Destroy();
 
 private:
 	wxMenu*				m_menuConnect;

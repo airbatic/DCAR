@@ -144,6 +144,12 @@ MainFrame::~MainFrame()
 
 }
 
+bool MainFrame::Destroy()
+{
+    m_dcar.Destroy();
+    return wxFrame::Destroy();
+}
+
 void MainFrame::CreateMenuBar(void)
 {
 	// Create CONNECT menu items
@@ -222,8 +228,6 @@ bool MainFrame::ConnectionOpen(wxSockAddress::Family family, wxString hostname)
         wxMessageBox("Failed to Open Port - in use already?", wxT("DCAR Error"), wxICON_ERROR, this);
         return false;
 	}
-
-    m_dcar.SetAddress(hostname, DCAR_PORT_LAN);
 
     SetStatusText(hostname, 1);
 
