@@ -40,7 +40,7 @@ public:
 
 // Operations
 public:
-    int Initialize();
+    int Initialize(wxString hostname, u_short portnum=DCAR_PORT_LAN);
     int Destroy();
     // commands to a DCAR
     int Ping();
@@ -55,13 +55,13 @@ public:
 
     // Helpers
     char* dBm2rms(int16_t dBm_x_10, char *out, size_t n);
+    wxString GetErrorString(int rc);
 
 // Implementation
 private:
     int DoFrameTx(void* txtbuf, uint16_t txtlen);
     int DoFrameRx(void* txtbuf, uint16_t txtlen);
     int DoCommand(uint8_t command);
-
     uint16_t CRC16Update(uint16_t crc, uint8_t d);
 
 // Overrides
@@ -69,10 +69,11 @@ protected:
 
 // Implementation
 public:
-    bool                m_open;     // port open flag
-    uint16_t            m_uaddr;    // DCAR unit address
-    wxIPV4address       m_addr;     // IP4 address
-    wxDatagramSocket*   m_sock;     // datagram socket handle
+    bool                m_open;         // port open flag
+    uint16_t            m_uaddr;        // DCAR unit address
+    wxIPV4address       m_addrLocal;    // The local IP4 address
+    wxIPV4address       m_addrRemote;   // The remote IP4 address
+    wxDatagramSocket*   m_sock;         // datagram socket handle
 
 	virtual ~DCARCommand();
 };

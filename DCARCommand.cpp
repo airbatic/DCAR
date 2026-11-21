@@ -21,16 +21,11 @@
 
 DCARCommand::DCARCommand()
 {
-    m_open = false;
-
     // Set the DCAR physical unit address
     m_uaddr = DCAR_UNIT_ADDRESS;
-
-    // Setup the IP address
-    m_addr.AnyAddress();
-    m_addr.Service(DCAR_PORT_LAN);
-
+    // No socket object created yet
     m_sock = nullptr;
+    m_open = false;
 }
 
 DCARCommand::~DCARCommand()
@@ -38,8 +33,7 @@ DCARCommand::~DCARCommand()
     Destroy();
 }
 
-
-int DCARCommand::Initialize()
+int DCARCommand::Initialize(wxString hostname, u_short portnum)
 {
     if (m_sock != nullptr)
         return -1;
@@ -47,12 +41,27 @@ int DCARCommand::Initialize()
     if (m_open)
         return -1;
 
-    // Setup the IP address
-    m_addr.AnyAddress();
-    m_addr.Service(DCAR_PORT_LAN);
+    // Set the hardware unit address used in messages to DCAR
+    SetUnitAddress(DCAR_UNIT_ADDRESS);
 
-    //create and bind to the address above
-    m_sock = new wxDatagramSocket(m_addr);
+    // Bind to any local interface on an ephemeral port (0 lets Linux pick a free port)
+    m_addrLocal.AnyAddress();
+    m_addrLocal.Service(0);
+
+    // Create and bind to the address above
+    m_sock = new wxDatagramSocket(m_addrLocal, wxSOCKET_NONE);
+
+    // Verify the socket opened successfully
+    // (e.g., port already in use or permission denied)
+    if (!m_sock->IsOk())
+    {
+        m_sock->Destroy();
+        return -1;
+    }
+
+    // Setup the remote address we want to send to
+    m_addrRemote.Hostname(hostname);    // Target IP or hostname
+    m_addrRemote.Service(portnum);      // Target UDP port
 
     //enable event handling
     //m_sock->SetEventHandler(*this,SOCKET_ID);
@@ -74,7 +83,7 @@ int DCARCommand::Destroy()
 
     if (m_sock != nullptr)
     {
-        delete m_sock;
+        m_sock->Destroy();
         m_sock = nullptr;
         rc = 1;
     }
@@ -84,6 +93,43 @@ int DCARCommand::Destroy()
     return rc;
 }
 
+wxString DCARCommand::GetErrorString(int rc)
+{
+    wxString str;
+
+    switch(rc)
+    {
+    case DCAR_ERR_TIMEOUT:
+        str = "comm port timeout";
+        break;
+    case DCAR_ERR_SYNC:
+        str = "SOF frame sync error";
+        break;
+    case DCAR_ERR_SHORT_FRAME:
+        str = "short rx-frame error";
+        break;
+    case DCAR_ERR_RX_OVERFLOW:
+        str =  "rx buffer overflow";
+        break;
+    case DCAR_ERR_FRAME_LEN:
+        str = "bad rx-frame length";
+        break;
+    case DCAR_ERR_TEXT_LEN:
+        str = "bad rx-text length";
+        break;
+    case DCAR_ERR_CONFIRM:
+        str = "short rx-frame error";
+        break;
+    case DCAR_ERR_CRC:
+        str = "bad CRC";
+        break;
+    default:
+        str.Printf("(unknown %d)", rc);
+        break;
+    }
+
+    return str;
+}
 
 // ===========================================================================
 // DCARCommand Attributes
@@ -91,11 +137,10 @@ int DCARCommand::Destroy()
 
 void DCARCommand::SetAddress(wxString address, u_short portnum)
 {
-    //in my case my local IP, could have used 127.0.0.1 as well
-    m_addr.Hostname(address);
-
+    //in my/ case my local IP, could have used 127.0.0.1 as well
+    m_addrRemote.Hostname(address);
     //the port to send it to
-    m_addr.Service(portnum);
+    m_addrRemote.Service(portnum);
 }
 
 void DCARCommand::SetUnitAddress(uint16_t addr)
@@ -191,11 +236,11 @@ int DCARCommand::DoFrameTx(void* txtbuf, uint16_t txtlen)
 
     /* Send the preamble MSB for the frame start */
     b = DCAR_PREAMBLE_MSB;
-    m_sock->SendTo(m_addr, &b, 1);
+    m_sock->SendTo(m_addrRemote, &b, 1);
 
     /* Send the preamble LSB for the frame start */
     b = DCAR_PREAMBLE_LSB;
-    m_sock->SendTo(m_addr, &b, 1);
+    m_sock->SendTo(m_addrRemote, &b, 1);
 
     /* CRC starts here, sum in the seed byte first */
     crc = CRC16Update(DCAR_CRC_SEED, DCAR_PHANTOM_BYTE);
@@ -206,16 +251,16 @@ int DCARCommand::DoFrameTx(void* txtbuf, uint16_t txtlen)
     {
         b = *textbuf++;
         crc = CRC16Update(crc, b);
-        m_sock->SendTo(m_addr, &b, 1);
+        m_sock->SendTo(m_addrRemote, &b, 1);
     }
 
     /* Send the CRC MSB */
     b = (uint8_t)(crc >> 8);
-    m_sock->SendTo(m_addr, &b, 1);
+    m_sock->SendTo(m_addrRemote, &b, 1);
 
     /* Send the CRC LSB */
     b = (uint8_t)(crc & 0xFF);
-    m_sock->SendTo(m_addr, &b, 1);
+    m_sock->SendTo(m_addrRemote, &b, 1);
 
     return rc;
 }
@@ -244,7 +289,7 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
     do {
 
         /* Read the preamble MSB for the frame start */
-        if (m_sock->RecvFrom(m_addr, &b, 1).Error())
+        if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
             return DCAR_ERR_TIMEOUT;
 
         /* Garbage flood, no preamble?? */
@@ -257,7 +302,7 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
      * has to be 0xFC for a valid SOF sequence.
      */
 
-    if (m_sock->RecvFrom(m_addr, &b, 1).Error())
+    if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
         return DCAR_ERR_TIMEOUT;
 
     if (b != DCAR_PREAMBLE_LSB)
@@ -273,7 +318,7 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
 
     for (i=0; i < textlen; i++)
     {
-        if (m_sock->RecvFrom(m_addr, &b, 1).Error())
+        if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
             return DCAR_ERR_SHORT_FRAME;
 
         /* update the CRC */
@@ -293,13 +338,13 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
     }
 
     /* Read the packet CRC MSB */
-    if (m_sock->RecvFrom(m_addr, &b, 1).Error())
+    if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
         return DCAR_ERR_SHORT_FRAME;
 
     msb = (uint16_t)b & 0xFF;
 
     /* Read the packet CRC LSB */
-    if (m_sock->RecvFrom(m_addr, &b, 1).Error())
+    if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
         return DCAR_ERR_TIMEOUT;
 
     if (b != DCAR_PREAMBLE_LSB)

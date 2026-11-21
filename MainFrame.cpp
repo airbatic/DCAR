@@ -217,8 +217,13 @@ bool MainFrame::ConnectionOpen(wxSockAddress::Family family, wxString hostname)
 
 	m_strHostname = hostname;
 
-	if (m_dcar.Initialize() == -1)
+	if (m_dcar.Initialize(hostname, DCAR_PORT_LAN) == -1)
+	{
+        wxMessageBox("Failed to Open Port - in use already?", wxT("DCAR Error"), wxICON_ERROR, this);
         return false;
+	}
+
+    m_dcar.SetAddress(hostname, DCAR_PORT_LAN);
 
     SetStatusText(hostname, 1);
 
@@ -296,7 +301,10 @@ void MainFrame::OnConnectTcp(wxCommandEvent& WXUNUSED(event))
     config->Write(key, hostname);
     config->Flush();
 
-	ConnectionOpen(wxSockAddress::IPV4, hostname);
+	if (!ConnectionOpen(wxSockAddress::IPV4, hostname))
+	{
+
+	}
 }
 
 void MainFrame::OnUpdateUIConnectTcp(wxUpdateUIEvent& event)
@@ -350,7 +358,8 @@ int MainFrame::CheckError(int rc, wxString msg)
     if (rc != DCAR_ERR_SUCCESS)
     {
         wxString str;
-        str.Printf("\ngCheck that the DCAR IP address is correct\n\nError %d - %s", rc, msg);
+        wxString err = m_dcar.GetErrorString(rc);
+        str.Printf("\nError : %s\n\nError (%d) : %s", msg, rc, err);
         wxMessageBox(str, wxT("DCAR Error"), wxICON_ERROR, this);
     }
     return rc;
