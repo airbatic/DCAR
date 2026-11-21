@@ -9,14 +9,11 @@
 //
 // ==========================================================================
 
-#include <stdio.h>
-#include <fcntl.h>      // Contains file controls like O_RDWR
-#include <errno.h>      // Error integer and strerror() function
-#include <termios.h>    // Contains POSIX terminal control definitions
-#include <unistd.h>     // write(), read(), close()
-#include <string.h>     // For strlen()
-
+#include "DCARApp.h"
 #include "DCARCommand.h"
+
+#define T15_UNDERFLOW       32767
+#define T15_UNDERFLOW_DSP   "----"
 
 // ===========================================================================
 // DCARCommand Construction/Destruction
@@ -24,31 +21,93 @@
 
 DCARCommand::DCARCommand()
 {
-    m_address = 0xFFFF;
+    m_open = false;
+
+    // Set the DCAR physical unit address
+    m_uaddr = DCAR_UNIT_ADDRESS;
+
+    // Setup the IP address
+    m_addr.AnyAddress();
+    m_addr.Service(DCAR_PORT_LAN);
+
+    m_sock = nullptr;
 }
 
 DCARCommand::~DCARCommand()
 {
+    Destroy();
 }
+
+
+int DCARCommand::Initialize()
+{
+    if (m_sock != nullptr)
+        return -1;
+
+    if (m_open)
+        return -1;
+
+    // Setup the IP address
+    m_addr.AnyAddress();
+    m_addr.Service(DCAR_PORT_LAN);
+
+    //create and bind to the address above
+    m_sock = new wxDatagramSocket(m_addr);
+
+    //enable event handling
+    //m_sock->SetEventHandler(*this,SOCKET_ID);
+
+    //Notify us about incomming data
+    //m_dsock->SetNotify(wxSOCKET_INPUT_FLAG);
+
+    //enable event handling
+    //m_dsock->Notify(true);
+
+    m_open = true;
+
+    return 0;
+}
+
+int DCARCommand::Destroy()
+{
+    int rc = 0;
+
+    if (m_sock != nullptr)
+    {
+        delete m_sock;
+        m_sock = nullptr;
+        rc = 1;
+    }
+
+    m_open = false;
+
+    return rc;
+}
+
 
 // ===========================================================================
 // DCARCommand Attributes
 // ===========================================================================
 
-void DCARCommand::SetAddress(uint16_t address)
+void DCARCommand::SetAddress(wxString address, u_short portnum)
 {
-    m_address = address;
+    //in my case my local IP, could have used 127.0.0.1 as well
+    m_addr.Hostname(address);
+
+    //the port to send it to
+    m_addr.Service(portnum);
 }
 
-uint16_t DCARCommand::GetAddress(void)
+void DCARCommand::SetUnitAddress(uint16_t addr)
 {
-    return m_address;
+    m_uaddr = addr;
 }
 
 // ===========================================================================
 // Message Send/Receive Helpers
 // ===========================================================================
 
+#if 0
 uint16_t DCARCommand::CRC16Update(uint16_t crc, uint8_t d)
 {
     static const uint16_t table[256] = {
@@ -88,12 +147,39 @@ uint16_t DCARCommand::CRC16Update(uint16_t crc, uint8_t d)
 
     return table[d ^ (uint8_t)(crc >> (16 - 8))] ^ (crc << 8);
 }
+#endif // 0
 
-/*
- * Send a DCAR message of specified length
- */
 
-int DCARCommand::DoFrameTx(int handle, void* txtbuf, uint16_t txtlen)
+uint16_t DCARCommand::CRC16Update(uint16_t crc, uint8_t d)
+{
+    int32_t bit;
+
+    for (bit = 1; bit <= 8; bit++)
+    {
+        if (crc & 0x8000)
+        {                                       /* a 1 will shift off          */
+            crc = (uint16_t)(crc << 1);
+
+            if (d & 0x80)
+                crc |= 1;                       /* message bit shifts in       */
+
+            crc ^= (uint16_t)DCAR_CCITT_POLY;
+        }
+        else
+        {
+            crc = (uint16_t)(crc << 1);
+
+            if (d & 0x80)
+                crc |= 1;
+        }
+
+        d = (uint8_t)(d << 1);
+    }
+
+    return crc;
+}
+
+int DCARCommand::DoFrameTx(void* txtbuf, uint16_t txtlen)
 {
     int rc = DCAR_ERR_SUCCESS;
     uint8_t  b;
@@ -105,14 +191,14 @@ int DCARCommand::DoFrameTx(int handle, void* txtbuf, uint16_t txtlen)
 
     /* Send the preamble MSB for the frame start */
     b = DCAR_PREAMBLE_MSB;
-    write(handle, &b, 1);
+    m_sock->SendTo(m_addr, &b, 1);
 
     /* Send the preamble LSB for the frame start */
     b = DCAR_PREAMBLE_LSB;
-    write(handle, &b, 1);
+    m_sock->SendTo(m_addr, &b, 1);
 
     /* CRC starts here, sum in the seed byte first */
-    crc = CRC16Update(0, DCAR_PHANTOM_BYTE);
+    crc = CRC16Update(DCAR_CRC_SEED, DCAR_PHANTOM_BYTE);
 
     /* Send message data */
 
@@ -120,16 +206,16 @@ int DCARCommand::DoFrameTx(int handle, void* txtbuf, uint16_t txtlen)
     {
         b = *textbuf++;
         crc = CRC16Update(crc, b);
-        write(handle, &b, 1);
+        m_sock->SendTo(m_addr, &b, 1);
     }
 
     /* Send the CRC MSB */
     b = (uint8_t)(crc >> 8);
-    write(handle, &b, 1);
+    m_sock->SendTo(m_addr, &b, 1);
 
     /* Send the CRC LSB */
     b = (uint8_t)(crc & 0xFF);
-    write(handle, &b, 1);
+    m_sock->SendTo(m_addr, &b, 1);
 
     return rc;
 }
@@ -138,7 +224,7 @@ int DCARCommand::DoFrameTx(int handle, void* txtbuf, uint16_t txtlen)
  * Receive a DCAR message of specified length
  */
 
-int DCARCommand::DoFrameRx(int handle, void* txtbuf, uint16_t txtlen)
+int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
 {
     int i;
     int rc = DCAR_ERR_SUCCESS;
@@ -158,7 +244,7 @@ int DCARCommand::DoFrameRx(int handle, void* txtbuf, uint16_t txtlen)
     do {
 
         /* Read the preamble MSB for the frame start */
-        if (read(handle, &b, 1) != 1)
+        if (m_sock->RecvFrom(m_addr, &b, 1).Error())
             return DCAR_ERR_TIMEOUT;
 
         /* Garbage flood, no preamble?? */
@@ -170,7 +256,8 @@ int DCARCommand::DoFrameRx(int handle, void* txtbuf, uint16_t txtlen)
     /* We found the first 0x89 sequence, next byte
      * has to be 0xFC for a valid SOF sequence.
      */
-    if (read(handle, &b, 1) != 1)
+
+    if (m_sock->RecvFrom(m_addr, &b, 1).Error())
         return DCAR_ERR_TIMEOUT;
 
     if (b != DCAR_PREAMBLE_LSB)
@@ -186,7 +273,7 @@ int DCARCommand::DoFrameRx(int handle, void* txtbuf, uint16_t txtlen)
 
     for (i=0; i < textlen; i++)
     {
-        if (read(handle, &b, 1) != 1)
+        if (m_sock->RecvFrom(m_addr, &b, 1).Error())
             return DCAR_ERR_SHORT_FRAME;
 
         /* update the CRC */
@@ -206,14 +293,17 @@ int DCARCommand::DoFrameRx(int handle, void* txtbuf, uint16_t txtlen)
     }
 
     /* Read the packet CRC MSB */
-    if (read(handle, &b, 1) != 1)
+    if (m_sock->RecvFrom(m_addr, &b, 1).Error())
         return DCAR_ERR_SHORT_FRAME;
 
     msb = (uint16_t)b & 0xFF;
 
     /* Read the packet CRC LSB */
-    if (read(handle, &b, 1) != 1)
-        return DCAR_ERR_SHORT_FRAME;
+    if (m_sock->RecvFrom(m_addr, &b, 1).Error())
+        return DCAR_ERR_TIMEOUT;
+
+    if (b != DCAR_PREAMBLE_LSB)
+        rc = DCAR_ERR_CRC;
 
     lsb = (uint16_t)b & 0xFF;
 
@@ -231,7 +321,7 @@ int DCARCommand::DoFrameRx(int handle, void* txtbuf, uint16_t txtlen)
  * Send a DCAR Command Message
  */
 
-int DCARCommand::DoCommand(int handle, uint8_t command)
+int DCARCommand::DoCommand(uint8_t command)
 {
     int rc;
     DCAR_COMMAND message;
@@ -239,12 +329,12 @@ int DCARCommand::DoCommand(int handle, uint8_t command)
 
     message.preamble = DCAR_PREAMBLE;
     message.type     = DCAR_TYPE_COMMAND;
-    message.address  = GetAddress();
+    message.address  = m_uaddr;
     message.command  = command;
 
     /* Send the DCAR command request */
 
-	rc = DoFrameTx(handle, &message, sizeof(DCAR_COMMAND));
+	rc = DoFrameTx(&message, sizeof(DCAR_COMMAND));
 
     if (rc != DCAR_ERR_SUCCESS)
         return rc;
@@ -253,9 +343,35 @@ int DCARCommand::DoCommand(int handle, uint8_t command)
 
     memset(&reply, 0, sizeof(reply));
 
- 	rc = DoFrameRx(handle, &reply, sizeof(DCAR_CONFIRM));
+ 	rc = DoFrameRx(&reply, sizeof(DCAR_CONFIRM));
 
 	return rc;
+}
+
+/*------------------------------------------------------------------------------
+ * dBm2rms -- dBm*10 to mVrms (50 ohm), returned as an integer string
+ *   mVrms = 1000 * sqrt(0.05 * 10^(dBm/10))
+ *----------------------------------------------------------------------------*/
+
+char* DCARCommand::dBm2rms(int16_t dBm_x_10, char *out, size_t n)
+{
+    float dbm, mv_rms;
+
+    if (dBm_x_10 == T15_UNDERFLOW)
+    {
+        snprintf(out, n, "%s", T15_UNDERFLOW_DSP);
+        return out;
+    }
+
+    dbm = (float)dBm_x_10;
+
+    dbm = dbm / 10;
+
+    mv_rms = (float)(1000 * sqrt(0.05 * pow(10, (dbm / 10))));
+
+    snprintf(out, n, "%ld", lround((double)mv_rms));
+
+    return out;
 }
 
 // ===========================================================================
@@ -266,63 +382,63 @@ int DCARCommand::DoCommand(int handle, uint8_t command)
  * Ping a DCAR
  */
 
-int DCARCommand::Ping(int handle)
+int DCARCommand::Ping()
 {
-    return DoCommand(handle, DCAR_CMD_PING);
+    return DoCommand(DCAR_CMD_PING);
 }
 
 /*
  * Set DCAR to Receive Mode
  */
 
-int DCARCommand::SetModeReceive(int handle)
+int DCARCommand::SetModeReceive()
 {
-    return DoCommand(handle, DCAR_CMD_RXMODE);
+    return DoCommand(DCAR_CMD_RXMODE);
 }
 
 /*
  * Set DCAR to Transmit Mode
  */
 
-int DCARCommand::SetModeTransmit(int handle)
+int DCARCommand::SetModeTransmit()
 {
-    return DoCommand(handle, DCAR_CMD_TXMODE);
+    return DoCommand(DCAR_CMD_TXMODE);
 }
 
 /*
  * Set DCAR to Safe Mode
  */
 
-int DCARCommand::SetModeSafe(int handle)
+int DCARCommand::SetModeSafe()
 {
-    return DoCommand(handle, DCAR_CMD_SAFEMODE);
+    return DoCommand(DCAR_CMD_SAFEMODE);
 }
 
 /*
  * Reset DCAR DC Null Offsets
  */
 
-int DCARCommand::SetDCNullOffset(int handle)
+int DCARCommand::SetDCNullOffset()
 {
-    return DoCommand(handle, DCAR_CMD_NULLOFFSET);
+    return DoCommand(DCAR_CMD_NULLOFFSET);
 }
 
 /*
  * Reset DCAR Alarm State
  */
 
-int DCARCommand::SetAlarmReset(int handle)
+int DCARCommand::SetAlarmReset()
 {
-    return DoCommand(handle, DCAR_CMD_ALARMRESET);
+    return DoCommand(DCAR_CMD_ALARMRESET);
 }
 
 /*
  * Set DCAR Alarm to Silence
  */
 
-int DCARCommand::SetAlarmSilence(int handle)
+int DCARCommand::SetAlarmSilence()
 {
-    return DoCommand(handle, DCAR_CMD_ALARMSILENCE);
+    return DoCommand(DCAR_CMD_ALARMSILENCE);
 }
 
 // ===========================================================================
@@ -333,7 +449,7 @@ int DCARCommand::SetAlarmSilence(int handle)
  * Read all DCAR Settings Data
  */
 
-int DCARCommand::GetAllStatus(int handle, DCAR_READ_ALL* data)
+int DCARCommand::GetAllStatus(DCAR_READ_ALL* data)
 {
     int rc = DCAR_ERR_SUCCESS;
 #if 0
@@ -365,7 +481,7 @@ int DCARCommand::GetAllStatus(int handle, DCAR_READ_ALL* data)
  * Write all DCAR Settings Data
  */
 
-int DCARCommand::SetAllStatus(int handle, DCAR_SEND_ALL* data)
+int DCARCommand::SetAllStatus(DCAR_SEND_ALL* data)
 {
     int rc = DCAR_ERR_SUCCESS;
 #if 0

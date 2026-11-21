@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DCARCommand.h"
+
 ///////////////////////////////////////////////////////////////////////////////
 // Left hand view container panel, left hand side view
 
@@ -51,16 +53,15 @@ public:
 	~MainFrame();
 
 public:
-	wxSocketClient* GetSocketState()
-	{ return m_sockState; }
 	bool IsConnected(void)
-	{ return m_sockState->IsConnected() ? true : false; }
+	{ return m_dcar.IsOpen(); }
 
 private:
 	void CreateMenuBar(void);
 	bool ConnectionOpen(wxSockAddress::Family family, wxString hostname);
 	void ConnectionClose(void);
-	void HandleReceiveData(void);
+	//void HandleReceiveData(void);
+    int CheckError(int rc, wxString msg);
 
 private:
 	wxMenu*				m_menuConnect;
@@ -68,14 +69,14 @@ private:
 	wxPanel*			m_panel;
 	LeftContainer*		m_panelLeft;
 	RightContainer*		m_panelRight;
-	wxSocketClient*		m_sockState;
 	wxString			m_strHostname;
 	int					m_nPortNumber;
+	DCARCommand         m_dcar;
 
 	// Event Handlers
 	wxDECLARE_EVENT_TABLE();
 
-	void OnSocketEvent(wxSocketEvent& event);
+	//void OnSocketEvent(wxSocketEvent& event);
 	void OnConnectTcp(wxCommandEvent& WXUNUSED(event));
     void OnUpdateUIConnectTcp(wxUpdateUIEvent& event);
 	void OnConnectClose(wxCommandEvent& WXUNUSED(event));

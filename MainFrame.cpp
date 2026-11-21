@@ -45,7 +45,7 @@ wxString wxbuildinfo(wxbuildinfoformat format)
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     // Socket Read Event
-    EVT_SOCKET(SOCKET_ID, MainFrame::OnSocketEvent)
+    //EVT_SOCKET(SOCKET_ID, MainFrame::OnSocketEvent)
     // Connect Menu
     EVT_MENU(ID_CONNECT_OPEN, MainFrame::OnConnectTcp)
     EVT_UPDATE_UI(ID_CONNECT_OPEN, MainFrame::OnUpdateUIConnectTcp)
@@ -137,13 +137,6 @@ MainFrame::MainFrame() :
 	SetStatusWidths(2, widths);
 	SetStatusText(wxT("Ready"), 0);
     SetStatusText(wxT("(closed)"), 1);
-
-	// Create the socket
-	m_sockState = new wxSocketClient(wxSOCKET_NOWAIT);
-	// Setup the event handler and subscribe to most events
-	m_sockState->SetEventHandler(*this, SOCKET_ID);
-	m_sockState->SetNotify(wxSOCKET_CONNECTION_FLAG | wxSOCKET_INPUT_FLAG | wxSOCKET_LOST_FLAG);
-	m_sockState->Notify(true);
 }
 
 MainFrame::~MainFrame()
@@ -219,60 +212,27 @@ void MainFrame::CreateMenuBar(void)
 
 bool MainFrame::ConnectionOpen(wxSockAddress::Family family, wxString hostname)
 {
-	wxUnusedVar(family); // unused in !wxUSE_IPV6 case
-	bool connected = false;
-	wxIPaddress* addr;
-	wxIPV4address addr4;
-#if wxUSE_IPV6
-	wxIPV6address addr6;
-	if (family == wxSockAddress::IPV6)
-		addr = &addr6;
-	else
-#endif
-		addr = &addr4;
-
 	m_menuConnect->Enable(ID_CONNECT_OPEN, false);
-#if wxUSE_IPV6
-	//m_menuSocket->Enable(CLIENT_OPENIPV6, false);
-#endif
 	m_menuConnect->Enable(ID_CONNECT_CLOSE, false);
 
 	m_strHostname = hostname;
 
-	addr->Hostname(hostname);
-	addr->Service(m_nPortNumber);
+	if (m_dcar.Initialize() == -1)
+        return false;
 
-	// we connect asynchronously and will get a wxSOCKET_CONNECTION event when
-	// the connection is really established
+    SetStatusText(hostname, 1);
 
-	wxString msg;
-	msg.Printf(wxT("Connecting..."), hostname, addr->Service());
-	SetStatusText(msg, 1);
-
-	connected = m_sockState->Connect(*addr, true);
-
-    if (connected)
-        msg.Printf(wxT("%s"), m_strHostname);
-    else
-        msg.Printf(wxT("Connect Failed!"));
-
-    SetStatusText(msg, 1);
-
-	return connected;
+	return true;
 }
 
 void MainFrame::ConnectionClose(void)
 {
     SetStatusText(wxT("(closed)"), 1);
 
-	if (m_sockState->IsConnected())
-	{
-		m_sockState->Close();
-	}
-
-	m_sockState->Notify(false);
+    m_dcar.Destroy();
 }
 
+#if 0
 void MainFrame::OnSocketEvent(wxSocketEvent& event)
 {
 	switch (event.GetSocketEvent())
@@ -303,6 +263,9 @@ void MainFrame::HandleReceiveData(void)
 	//UpdateStatusBar();
 }
 
+#endif
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // CONNECT Menu Handlers
 
@@ -320,8 +283,8 @@ void MainFrame::OnConnectTcp(wxCommandEvent& WXUNUSED(event))
 
 	// Ask user for server address
 	wxString hostname = wxGetTextFromUser(
-		_("Enter the IP address of the DCAR to connect with"),
-		_("Connect..."), str);
+		_("Enter the IP addres of the DCAR to control..."),
+		_("Open Port"), str);
 
 	if (hostname.empty())
 	{
@@ -382,39 +345,50 @@ void MainFrame::OnUpdateUICommand(wxUpdateUIEvent& event)
 	event.Enable(false);
 }
 
+int MainFrame::CheckError(int rc, wxString msg)
+{
+    if (rc != DCAR_ERR_SUCCESS)
+    {
+        wxString str;
+        str.Printf("\nCheck that the DCAR IP address is correct\n\nError %d - %s", rc, msg);
+        wxMessageBox(str, wxT("DCAR Error"), wxICON_ERROR, this);
+    }
+    return rc;
+}
+
 void MainFrame::OnPingRemote(wxCommandEvent& WXUNUSED(event))
 {
-    wxLogMessage("OnPingRemote");
+    CheckError(m_dcar.Ping(), "Ping Unit");
 }
 
 void MainFrame::OnSetRxMode(wxCommandEvent& WXUNUSED(event))
 {
-    wxLogMessage("OnSetRxMode");
+    CheckError(m_dcar.SetModeReceive(), "Set Receive Mode");
 }
 
 void MainFrame::OnSetTxMode(wxCommandEvent& WXUNUSED(event))
 {
-    wxLogMessage("OnSetTxMode");
+    CheckError(m_dcar.SetModeTransmit(), "Set Transmit Mode");
 }
 
 void MainFrame::OnSetSafeMode(wxCommandEvent& WXUNUSED(event))
 {
-    wxLogMessage("OnSetSafeMode");
+    CheckError(m_dcar.SetModeSafe(), "Set Safe Mode");
 }
 
 void MainFrame::OnNullDcOffset(wxCommandEvent& WXUNUSED(event))
 {
-    wxLogMessage("OnNullDcOffset");
+    CheckError(m_dcar.SetDCNullOffset(), "DC Null Offset");
 }
 
 void MainFrame::OnAlarmReset(wxCommandEvent& WXUNUSED(event))
 {
-    wxLogMessage("OnAlarmReset");
+    CheckError(m_dcar.SetAlarmReset(), "Alarm Reset");
 }
 
 void MainFrame::OnAlarmSilence(wxCommandEvent& WXUNUSED(event))
 {
-    wxLogMessage("OnAlarmSilence");
+    CheckError(m_dcar.SetAlarmSilence(), "Alarm Silence");
 }
 
 ///////////////////////////////////////////////////////////////////////////////

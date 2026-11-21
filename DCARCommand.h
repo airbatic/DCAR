@@ -34,26 +34,33 @@ public:
 
 // Attributes
 public:
-    uint16_t GetAddress(void);
-    void SetAddress(uint16_t address);
+    void SetAddress(wxString address, u_short portnum=DCAR_PORT_LAN);
+    void SetUnitAddress(uint16_t addr=DCAR_UNIT_ADDRESS);
+    bool IsOpen() { return m_open; }
 
 // Operations
 public:
-    int Ping(int handle);
-    int SetModeReceive(int handle);
-    int SetModeTransmit(int handle);
-    int SetModeSafe(int handle);
-    int SetDCNullOffset(int handle);
-    int SetAlarmReset(int handle);
-    int SetAlarmSilence(int handle);
-    int GetAllStatus(int handle, DCAR_READ_ALL* data);
-    int SetAllStatus(int handle, DCAR_SEND_ALL* data);
+    int Initialize();
+    int Destroy();
+    // commands to a DCAR
+    int Ping();
+    int SetModeReceive();
+    int SetModeTransmit();
+    int SetModeSafe();
+    int SetDCNullOffset();
+    int SetAlarmReset();
+    int SetAlarmSilence();
+    int GetAllStatus(DCAR_READ_ALL* data);
+    int SetAllStatus(DCAR_SEND_ALL* data);
+
+    // Helpers
+    char* dBm2rms(int16_t dBm_x_10, char *out, size_t n);
 
 // Implementation
 private:
-    int DoFrameTx(int handle, void* txtbuf, uint16_t txtlen);
-    int DoFrameRx(int handle, void* txtbuf, uint16_t txtlen);
-    int DoCommand(int handle, uint8_t command);
+    int DoFrameTx(void* txtbuf, uint16_t txtlen);
+    int DoFrameRx(void* txtbuf, uint16_t txtlen);
+    int DoCommand(uint8_t command);
 
     uint16_t CRC16Update(uint16_t crc, uint8_t d);
 
@@ -62,7 +69,10 @@ protected:
 
 // Implementation
 public:
-    uint16_t    m_address;      /* 16-bit DCAR address */
+    bool                m_open;     // port open flag
+    uint16_t            m_uaddr;    // DCAR unit address
+    wxIPV4address       m_addr;     // IP4 address
+    wxDatagramSocket*   m_sock;     // datagram socket handle
 
 	virtual ~DCARCommand();
 };

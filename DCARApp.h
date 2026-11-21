@@ -26,10 +26,19 @@
 #include "wx/config.h"
 #include "wx/stdpaths.h"
 
+//#include <stdio.h>
+//#include <fcntl.h>      // Contains file controls like O_RDWR
+//#include <errno.h>      // Error integer and strerror() function
+//#include <termios.h>    // Contains POSIX terminal control definitions
+//#include <unistd.h>     // write(), read(), close()
+//#include <string.h>     // For strlen()
+//#include <math.h>
+
 #define VERSION_MAJOR   1
 #define VERSION_MINOR   0
 #define VERSION_BUILD   1
 
+#include "DCARMessage.h"
 #include "MainFrame.h"
 
 
