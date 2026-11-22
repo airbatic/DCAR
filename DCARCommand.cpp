@@ -279,7 +279,7 @@ int DCARCommand::DoFrameTx(void* txtbuf, uint16_t txtlen)
     // Returns true if data is ready, false on timeout or error
     // 2s, 0 ms
 
-    if (m_sock->WaitForRead(1, 0))
+    if (m_sock->WaitForRead(0, 500))
     {
         m_sock->RecvFrom(m_addrRemote, txtbuf, txtlen);
 

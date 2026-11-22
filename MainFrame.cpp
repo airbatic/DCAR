@@ -225,7 +225,7 @@ bool MainFrame::ConnectionOpen(wxSockAddress::Family family, wxString hostname)
 
 	if (m_dcar.Initialize(hostname, DCAR_PORT_LAN) == -1)
 	{
-        wxMessageBox("Failed to Open Port - in use already?", wxT("DCAR Error"), wxICON_ERROR, this);
+        wxMessageBox("Open Port Failed - in use already?", wxT("DCAR Error"), wxICON_ERROR, this);
         return false;
 	}
 
