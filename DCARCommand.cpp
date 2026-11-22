@@ -49,7 +49,7 @@ int DCARCommand::Initialize(wxString hostname, u_short portnum)
     m_addrLocal.Service(0);
 
     // Create and bind to the address above
-    m_sock = new wxDatagramSocket(m_addrLocal, wxSOCKET_NONE);
+    m_sock = new wxDatagramSocket(m_addrLocal, wxSOCKET_NOWAIT_READ);
 
     // Verify the socket opened successfully
     // (e.g., port already in use or permission denied)
@@ -59,6 +59,9 @@ int DCARCommand::Initialize(wxString hostname, u_short portnum)
         return -1;
     }
 
+    // two second read timeout
+    m_sock->SetTimeout(2);
+
     // Setup the remote address we want to send to
     m_addrRemote.Hostname(hostname);    // Target IP or hostname
     m_addrRemote.Service(portnum);      // Target UDP port
@@ -67,7 +70,7 @@ int DCARCommand::Initialize(wxString hostname, u_short portnum)
     //m_sock->SetEventHandler(*this,SOCKET_ID);
 
     //Notify us about incomming data
-    //m_dsock->SetNotify(wxSOCKET_INPUT_FLAG);
+    //m_sock->SetNotify(wxSOCKET_INPUT_FLAG);
 
     //enable event handling
     //m_dsock->Notify(true);
@@ -100,28 +103,28 @@ wxString DCARCommand::GetErrorString(int rc)
     switch(rc)
     {
     case DCAR_ERR_TIMEOUT:
-        str = "comm port timeout";
+        str = "Timeout - No Response";
         break;
     case DCAR_ERR_SYNC:
-        str = "SOF frame sync error";
+        str = "SOF Frame Sync";
         break;
     case DCAR_ERR_SHORT_FRAME:
-        str = "short rx-frame error";
+        str = "Short RX-Frame";
         break;
     case DCAR_ERR_RX_OVERFLOW:
-        str =  "rx buffer overflow";
+        str =  "RX Buffer Overflow";
         break;
     case DCAR_ERR_FRAME_LEN:
-        str = "bad rx-frame length";
+        str = "Bad RX-Frame Length";
         break;
     case DCAR_ERR_TEXT_LEN:
-        str = "bad rx-text length";
+        str = "Bad Text Length";
         break;
     case DCAR_ERR_CONFIRM:
-        str = "short rx-frame error";
+        str = "Confirmation Error";
         break;
     case DCAR_ERR_CRC:
-        str = "bad CRC";
+        str = "CRC Bad";
         break;
     default:
         str.Printf("(unknown %d)", rc);
@@ -269,6 +272,32 @@ int DCARCommand::DoFrameTx(void* txtbuf, uint16_t txtlen)
  * Receive a DCAR message of specified length
  */
 
+ int DCARCommand::DoRead(void *txtbuf, uint16_t txtlen, uint16_t &numread)
+ {
+    int rc = DCAR_ERR_SUCCESS;
+
+    // Returns true if data is ready, false on timeout or error
+    // 2s, 0 ms
+
+    if (m_sock->WaitForRead(1, 0))
+    {
+        m_sock->RecvFrom(m_addrRemote, txtbuf, txtlen);
+
+        if (!m_sock->Error())
+        {
+            // return the number of bytes actually read
+            numread = (uint16_t)m_sock->LastCount();
+        }
+    }
+    else
+    {
+        // timed out (or socket error: check sock.Error())
+        rc = DCAR_ERR_TIMEOUT;
+    }
+
+    return rc;
+ }
+
 int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
 {
     int i;
@@ -278,6 +307,7 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
     uint16_t msb;
     uint16_t rxcrc;
     uint16_t crc = 0;
+    uint16_t numread;
 
     uint8_t *textbuf = (uint8_t*)txtbuf;
     uint16_t textlen = txtlen;
@@ -288,9 +318,10 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
 
     do {
 
-        /* Read the preamble MSB for the frame start */
-        if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
-            return DCAR_ERR_TIMEOUT;
+        numread = 1;
+
+        if ((rc = DoRead(&b, 1, numread)) != DCAR_ERR_SUCCESS)
+            return rc;
 
         /* Garbage flood, no preamble?? */
         if (i++ > 128)
@@ -302,8 +333,8 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
      * has to be 0xFC for a valid SOF sequence.
      */
 
-    if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
-        return DCAR_ERR_TIMEOUT;
+    if ((rc = DoRead(&b, 1, numread)) != DCAR_ERR_SUCCESS)
+        return rc;
 
     if (b != DCAR_PREAMBLE_LSB)
         return DCAR_ERR_SYNC;
@@ -318,7 +349,7 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
 
     for (i=0; i < textlen; i++)
     {
-        if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
+        if ((rc = DoRead(&b, 1, numread)) != DCAR_ERR_SUCCESS)
             return DCAR_ERR_SHORT_FRAME;
 
         /* update the CRC */
@@ -338,14 +369,14 @@ int DCARCommand::DoFrameRx(void* txtbuf, uint16_t txtlen)
     }
 
     /* Read the packet CRC MSB */
-    if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
+    if ((rc = DoRead(&b, 1, numread)) != DCAR_ERR_SUCCESS)
         return DCAR_ERR_SHORT_FRAME;
 
     msb = (uint16_t)b & 0xFF;
 
     /* Read the packet CRC LSB */
-    if (m_sock->RecvFrom(m_addrRemote, &b, 1).Error())
-        return DCAR_ERR_TIMEOUT;
+    if ((rc = DoRead(&b, 1, numread)) != DCAR_ERR_SUCCESS)
+        return DCAR_ERR_SHORT_FRAME;
 
     if (b != DCAR_PREAMBLE_LSB)
         rc = DCAR_ERR_CRC;

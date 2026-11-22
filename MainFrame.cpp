@@ -363,7 +363,7 @@ int MainFrame::CheckError(int rc, wxString msg)
     {
         wxString str;
         wxString err = m_dcar.GetErrorString(rc);
-        str.Printf("\nError : %s\n\nError (%d) : %s", msg, rc, err);
+        str.Printf("\nError %d : %s\n\n%s", rc, msg, err);
         wxMessageBox(str, wxT("DCAR Error"), wxICON_ERROR, this);
     }
     return rc;

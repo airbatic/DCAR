@@ -62,6 +62,7 @@ private:
     int DoFrameTx(void* txtbuf, uint16_t txtlen);
     int DoFrameRx(void* txtbuf, uint16_t txtlen);
     int DoCommand(uint8_t command);
+    int DoRead(void *txtbuf, uint16_t txtlen, uint16_t &numread);
     uint16_t CRC16Update(uint16_t crc, uint8_t d);
 
 // Overrides
