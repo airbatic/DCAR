@@ -35,8 +35,8 @@
 //#include <math.h>
 
 #define VERSION_MAJOR   1
-#define VERSION_MINOR   0
-#define VERSION_BUILD   1
+#define VERSION_MINOR   2
+#define VERSION_BUILD   100
 
 #include "DCARMessage.h"
 #include "MainFrame.h"
@@ -59,11 +59,13 @@ public:
     virtual int OnExit() override;
 
 //private:
-	MainFrame* m_pMainFrame;
-    wxConfig* m_pConfig;
-	size_t  m_trackCount;       /* num of tracks machine supports 8, 16 or 24 */
-    bool    m_dcsFound;         /* true if DCS track controller found */
-	wxString m_strHostArg;
+	MainFrame*  m_pMainFrame;
+    wxConfig*   m_pConfig;
+    // Application global config variables
+    long        m_readTimeoutMS;    // DCAR network read timeout
+	wxString    m_strHostArg;       // DCAR network address string
+    int         m_unitAddress;      // DCAR hardware unit address
+    int         m_portNumber;       // DCAR network port number
 };
 
 // controls and menu constants

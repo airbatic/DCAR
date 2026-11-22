@@ -1,6 +1,5 @@
 #include "DCARApp.h"
 #include "ConnectDialog.h"
-
 // Icon resources for linux build
 #ifndef __WXMSW__
 #include "res/DCAR_16.xpm"
@@ -223,7 +222,9 @@ bool MainFrame::ConnectionOpen(wxSockAddress::Family family, wxString hostname)
 
 	m_strHostname = hostname;
 
-	if (m_dcar.Initialize(hostname, DCAR_PORT_LAN) == -1)
+	int rc = m_dcar.Initialize(hostname, (u_short)wxGetApp().m_portNumber, (u_short)wxGetApp().m_unitAddress);
+
+	if (rc == -1)
 	{
         wxMessageBox("Open Port Failed - in use already?", wxT("DCAR Error"), wxICON_ERROR, this);
         return false;
@@ -364,6 +365,7 @@ int MainFrame::CheckError(int rc, wxString msg)
         wxString str;
         wxString err = m_dcar.GetErrorString(rc);
         str.Printf("\nError %d : %s\n\n%s", rc, msg, err);
+        // Show the message box with error info
         wxMessageBox(str, wxT("DCAR Error"), wxICON_ERROR, this);
     }
     return rc;

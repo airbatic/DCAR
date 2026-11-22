@@ -33,7 +33,7 @@ DCARCommand::~DCARCommand()
     Destroy();
 }
 
-int DCARCommand::Initialize(wxString hostname, u_short portnum)
+int DCARCommand::Initialize(wxString hostname, u_short portnum, u_short unitaddr)
 {
     if (m_sock != nullptr)
         return -1;
@@ -59,21 +59,16 @@ int DCARCommand::Initialize(wxString hostname, u_short portnum)
         return -1;
     }
 
-    // two second read timeout
-    m_sock->SetTimeout(2);
-
     // Setup the remote address we want to send to
     m_addrRemote.Hostname(hostname);    // Target IP or hostname
     m_addrRemote.Service(portnum);      // Target UDP port
 
     //enable event handling
     //m_sock->SetEventHandler(*this,SOCKET_ID);
-
     //Notify us about incomming data
     //m_sock->SetNotify(wxSOCKET_INPUT_FLAG);
-
     //enable event handling
-    //m_dsock->Notify(true);
+    //m_sock->Notify(true);
 
     m_open = true;
 
@@ -138,12 +133,14 @@ wxString DCARCommand::GetErrorString(int rc)
 // DCARCommand Attributes
 // ===========================================================================
 
-void DCARCommand::SetAddress(wxString address, u_short portnum)
+void DCARCommand::SetAddress(wxString address, u_short portnum, u_short unitaddr)
 {
     //in my/ case my local IP, could have used 127.0.0.1 as well
     m_addrRemote.Hostname(address);
     //the port to send it to
     m_addrRemote.Service(portnum);
+    // set the hardware unit address
+    m_uaddr = unitaddr;
 }
 
 void DCARCommand::SetUnitAddress(uint16_t addr)
@@ -276,10 +273,12 @@ int DCARCommand::DoFrameTx(void* txtbuf, uint16_t txtlen)
  {
     int rc = DCAR_ERR_SUCCESS;
 
+    long timeout = wxGetApp().m_readTimeoutMS;
+
     // Returns true if data is ready, false on timeout or error
     // 2s, 0 ms
 
-    if (m_sock->WaitForRead(0, 500))
+    if (m_sock->WaitForRead(0, timeout))
     {
         m_sock->RecvFrom(m_addrRemote, txtbuf, txtlen);
 

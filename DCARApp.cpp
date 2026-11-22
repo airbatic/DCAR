@@ -51,6 +51,24 @@ bool DCARApp::OnInit()
         m_strHostArg = argv[1];
     }
 
+    // Read timeout parameter
+
+    m_readTimeoutMS = 500;
+
+    m_pConfig->Read(_("ReadTimeoutMS"), &m_readTimeoutMS);
+
+    if (m_readTimeoutMS > 5000) {
+        m_readTimeoutMS = 5000;
+    }
+
+    // DCAR IP port number
+    m_portNumber = DCAR_PORT_LAN;
+    m_pConfig->Read(_("PortNumber"), &m_portNumber);
+
+    // DCAR hardware unit address
+    m_unitAddress = DCAR_UNIT_ADDRESS;
+    m_pConfig->Read(_("UnitAddress"), &m_unitAddress);
+
     // Load formats like PNG or JPEG directly from a file
     wxInitAllImageHandlers();
 
@@ -66,6 +84,11 @@ int DCARApp::OnExit()
 {
     if (m_pConfig)
     {
+        // Save global config parameters, in case anything was changed
+        m_pConfig->Write(_("ReadTimeoutMS"), m_readTimeoutMS);
+        m_pConfig->Write(_("PortNumber"), m_portNumber);
+        m_pConfig->Write(_("UnitAddress"), m_unitAddress);
+
         m_pConfig->Flush();
 
         delete m_pConfig;

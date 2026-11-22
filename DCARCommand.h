@@ -34,13 +34,13 @@ public:
 
 // Attributes
 public:
-    void SetAddress(wxString address, u_short portnum=DCAR_PORT_LAN);
+    void SetAddress(wxString address, u_short portnum=DCAR_PORT_LAN, u_short unitaddr=DCAR_UNIT_ADDRESS);
     void SetUnitAddress(uint16_t addr=DCAR_UNIT_ADDRESS);
     bool IsOpen() { return m_open; }
 
 // Operations
 public:
-    int Initialize(wxString hostname, u_short portnum=DCAR_PORT_LAN);
+    int Initialize(wxString hostname, u_short portnum=DCAR_PORT_LAN, u_short unitaddr=DCAR_UNIT_ADDRESS);
     int Destroy();
     // commands to a DCAR
     int Ping();
