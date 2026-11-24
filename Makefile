@@ -27,7 +27,7 @@ LIB_DEBUG = $(LIB)
 LDFLAGS_DEBUG = $(LDFLAGS)
 OBJDIR_DEBUG = obj/Debug
 DEP_DEBUG = 
-OUT_DEBUG = bin/Debug/DRC1200
+OUT_DEBUG = bin/Debug/DCAR
 
 INC_RELEASE = $(INC)
 CFLAGS_RELEASE = $(CFLAGS) -O2 -Wno-write-strings -Wwrite-strings
@@ -38,7 +38,7 @@ LIB_RELEASE = $(LIB)
 LDFLAGS_RELEASE =  -s $(LDFLAGS)
 OBJDIR_RELEASE = obj/Release
 DEP_RELEASE = 
-OUT_RELEASE = bin/Release/DRC1200
+OUT_RELEASE = bin/Release/DCAR
 
 OBJ_DEBUG = $(OBJDIR_DEBUG)/DCARApp.o $(OBJDIR_DEBUG)/DCARCommand.o $(OBJDIR_DEBUG)/MainFrame.o $(OBJDIR_DEBUG)/MainFramePanel.o
 
