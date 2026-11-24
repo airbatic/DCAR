@@ -212,11 +212,11 @@ typedef struct _DCAR_READ_ALL {
 
 #define DCAR_PHANTOM_BYTE       0x80        /* for CRC calculation */
 
+#define DCAR_CRC_SEED           0xFFFF
+
 #define DCAR_CCITT_POLY         0x1021
 
 #define DCAR_PREAMBLE           0x89FC      /* message packet preamble */
-
-#define DCAR_CRC_SEED           0xFFFF
 
 #define DCAR_PREAMBLE_MSB       ((uint8_t)(DCAR_PREAMBLE >> 8))
 #define DCAR_PREAMBLE_LSB       ((uint8_t)(DCAR_PREAMBLE & 0xFF))
